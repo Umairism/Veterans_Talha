@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { supabase, Event, Profile, EventParticipant } from '../lib/supabase';
+import { supabase, Event, Profile, EventParticipant, Post } from '../lib/supabase';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Input';
@@ -18,6 +18,9 @@ import {
   UserPlus,
   Edit,
   MessageCircle,
+  Trash2,
+  User,
+  Video,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -25,6 +28,7 @@ export function OrganizationDashboard() {
   const { profile, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [events, setEvents] = useState<Event[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [veterans, setVeterans] = useState<Profile[]>([]);
   const [filteredVeterans, setFilteredVeterans] = useState<Profile[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
@@ -45,11 +49,16 @@ export function OrganizationDashboard() {
 
   const fetchData = async () => {
     try {
-      const [eventsResult, veteransResult] = await Promise.all([
+      const [eventsResult, postsResult, veteransResult] = await Promise.all([
         supabase
           .from('events')
           .select('*')
           .eq('creator_id', profile?.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('posts')
+          .select('*, author:profiles(*)')
+          .eq('author_id', profile?.id)
           .order('created_at', { ascending: false }),
         supabase.from('profiles').select('*').eq('user_type', 'veteran'),
       ]);
@@ -70,6 +79,10 @@ export function OrganizationDashboard() {
           }
         }
         setEventParticipants(participantsMap);
+      }
+
+      if (postsResult.data) {
+        setPosts(postsResult.data as Post[]);
       }
 
       if (veteransResult.data) {
@@ -180,6 +193,25 @@ export function OrganizationDashboard() {
     } catch (error) {
       console.error('Error updating profile:', error);
       throw error;
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    if (!confirm('Are you sure you want to delete this post?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', postId);
+
+      if (error) throw error;
+
+      fetchData();
+      alert('Post deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      alert('Failed to delete post');
     }
   };
 
@@ -511,13 +543,52 @@ export function OrganizationDashboard() {
               </p>
             </div>
 
-            {profile && <CreatePost authorId={profile.id} onPostCreated={() => {}} />}
+            {profile && <CreatePost authorId={profile.id} onPostCreated={fetchData} />}
 
-            <Card>
-              <p className="text-gray-500 text-center py-8">
-                Your posts will appear in veterans' feeds
-              </p>
-            </Card>
+            <div className="space-y-4">
+              {posts.length === 0 ? (
+                <Card>
+                  <p className="text-gray-500 text-center py-8">
+                    No posts yet. Share your first update!
+                  </p>
+                </Card>
+              ) : (
+                posts.map((post) => (
+                  <Card key={post.id}>
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-teal-600 rounded-full flex items-center justify-center">
+                          <User size={20} className="text-white" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-800">
+                            {post.author?.organization_name || post.author?.full_name}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {new Date(post.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeletePost(post.id)}
+                        className="text-red-500 hover:text-red-700 transition-colors p-2 hover:bg-red-50 rounded-lg"
+                        title="Delete post"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                    <p className="text-gray-700 mb-4 whitespace-pre-wrap">{post.content}</p>
+                    {post.image_url && (
+                      <img
+                        src={post.image_url}
+                        alt="Post"
+                        className="rounded-lg w-full max-h-96 object-cover mb-4"
+                      />
+                    )}
+                  </Card>
+                ))
+              )}
+            </div>
           </div>
         )}
       </div>

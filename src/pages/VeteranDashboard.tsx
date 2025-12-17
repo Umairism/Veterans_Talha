@@ -21,6 +21,7 @@ import {
   Bell,
   MessageCircle,
   Video,
+  Trash2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -53,7 +54,7 @@ export function VeteranDashboard() {
     try {
       const [postsResult, eventsResult, invitationsResult, followersResult, followingResult, myEventsResult] =
         await Promise.all([
-          // Fetch posts from followed users
+          // Fetch all posts (from both veterans and organizations)
           supabase
             .from('posts')
             .select('*, author:profiles(*)')
@@ -227,6 +228,25 @@ export function VeteranDashboard() {
     } catch (error) {
       console.error('Error updating profile:', error);
       throw error;
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    if (!confirm('Are you sure you want to delete this post?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', postId);
+
+      if (error) throw error;
+
+      fetchData();
+      alert('Post deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      alert('Failed to delete post');
     }
   };
 
@@ -432,7 +452,7 @@ export function VeteranDashboard() {
                             <div className="w-12 h-12 bg-gradient-to-r from-teal-200 to-teal-300 rounded-full flex items-center justify-center">
                               <User size={24} className="text-teal-700" />
                             </div>
-                            <div>
+                            <div className="flex-1">
                               <p className="font-semibold text-gray-800">
                                 {post.author?.full_name || 'Anonymous'}
                               </p>
@@ -440,6 +460,15 @@ export function VeteranDashboard() {
                                 {new Date(post.created_at).toLocaleDateString()}
                               </p>
                             </div>
+                            {post.author_id === profile?.id && (
+                              <button
+                                onClick={() => handleDeletePost(post.id)}
+                                className="text-red-500 hover:text-red-700 transition-colors p-2 hover:bg-red-50 rounded-lg"
+                                title="Delete post"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            )}
                           </div>
                           <p className="text-gray-700 mb-3 whitespace-pre-wrap">{post.content}</p>
                           {post.image_url && (

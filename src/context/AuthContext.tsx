@@ -47,17 +47,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    console.log('AuthContext useEffect running');
     // Check for mock auth in localStorage first (development mode)
     const mockUser = localStorage.getItem('mock_auth_user');
     const mockProfile = localStorage.getItem('mock_auth_profile');
-    console.log('localStorage check:', { mockUser: !!mockUser, mockProfile: !!mockProfile });
 
     if (mockUser && mockProfile) {
       try {
         const parsedUser = JSON.parse(mockUser);
         const parsedProfile = JSON.parse(mockProfile);
-        console.log('Setting mock auth:', { user: parsedUser.email, profile: parsedProfile.full_name });
         setUser(parsedUser);
         setProfile(parsedProfile);
         setLoading(false);
@@ -69,8 +66,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    console.log('No mock auth found, setting up Supabase');
-
     // Only set up Supabase auth if not using mock auth
     let mounted = true;
 
@@ -80,7 +75,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setProfile(null);
         setLoading(false);
-        console.log('Cleared old session, loading complete');
       }
     }).catch(err => {
       console.error('Failed to clear session:', err);
@@ -119,14 +113,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     // Development mode: Auto-login with any valid email/password format
     // Check if user exists in profiles table
-    console.log('Checking for profile with email:', email);
     const { data: existingProfile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('email', email)
       .maybeSingle();
-
-    console.log('Profile check result:', { found: !!existingProfile, error: profileError });
 
     if (profileError) {
       console.error('Error checking profile:', profileError);
