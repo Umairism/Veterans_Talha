@@ -17,6 +17,7 @@ export function Register() {
   const [organizationName, setOrganizationName] = useState('');
   const [city, setCity] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const { signUp } = useAuth();
   const navigate = useNavigate();
@@ -31,6 +32,7 @@ export function Register() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
 
     try {
@@ -41,10 +43,20 @@ export function Register() {
         organization_name: userType === 'organization' ? organizationName : undefined,
         city,
       });
-      // Don't manually navigate - PublicRoute will handle redirect
     } catch (err: unknown) {
       if (err instanceof Error) {
-        setError(err.message || 'Failed to create account. Please try again.');
+        if (err.message === 'VERIFICATION_EMAIL_SENT') {
+          setSuccess('✅ Account created! Please check your email to verify your account, then log in.');
+          // Clear form
+          setEmail('');
+          setPassword('');
+          setFullName('');
+          setProfession('');
+          setOrganizationName('');
+          setCity('');
+        } else {
+          setError(err.message || 'Failed to create account. Please try again.');
+        }
       } else {
         setError('Failed to create account. Please try again.');
       }
@@ -96,6 +108,11 @@ export function Register() {
             {error && (
               <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm">
                 {error}
+              </div>
+            )}
+            {success && (
+              <div className="bg-green-50 border-2 border-green-200 text-green-700 px-4 py-3 rounded-2xl text-sm font-medium">
+                {success}
               </div>
             )}
 

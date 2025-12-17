@@ -95,10 +95,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const profileData = await fetchProfile(session.user.id);
           if (mounted) {
             setProfile(profileData);
+            setLoading(false);
           }
         } else {
           if (mounted) {
             setProfile(null);
+            setLoading(false);
           }
         }
       })();
@@ -175,18 +177,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: window.location.origin + '/login',
+      },
     });
 
     if (error) throw error;
     if (!data.user) throw new Error('User creation failed');
 
+    // Try to create profile - if it fails, it might be due to RLS or duplicate
     const { error: profileError } = await supabase.from('profiles').insert({
       id: data.user.id,
       email,
       ...userData,
     });
 
-    if (profileError) throw profileError;
+    if (profileError) {
+      console.error('Profile creation error:', profileError);
+      // Don't throw error if it's a duplicate (user might have confirmed email)
+      if (profileError.code !== '23505') {
+        throw new Error('Please check your email to verify your account. You may need to run the RLS policy update in Supabase.');
+      }
+    }
+
+    // Sign out immediately after signup so they don't get stuck
+    await supabase.auth.signOut();
+    
+    // Return success message for email verification
+    throw new Error('VERIFICATION_EMAIL_SENT');
   };
 
   const signOut = async () => {
