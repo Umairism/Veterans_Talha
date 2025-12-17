@@ -66,32 +66,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Only set up Supabase auth if not using mock auth
+    // Set up Supabase auth listeners
     let mounted = true;
 
-    // For dev mode, clear any old Supabase sessions and just set loading to false
-    supabase.auth.signOut().then(() => {
-      if (mounted) {
-        setUser(null);
-        setProfile(null);
-        setLoading(false);
-      }
-    }).catch(err => {
-      console.error('Failed to clear session:', err);
-      if (mounted) {
-        setLoading(false);
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return;
-      // Don't process auth changes if we're using mock auth
-      const hasMockAuth = localStorage.getItem('mock_auth_user');
-      if (hasMockAuth) return;
-
+      
       (async () => {
-        setUser(session?.user ?? null);
         if (session?.user) {
+          setUser(session.user);
           const profileData = await fetchProfile(session.user.id);
           if (mounted) {
             setProfile(profileData);
@@ -99,11 +83,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         } else {
           if (mounted) {
+            setUser(null);
             setProfile(null);
             setLoading(false);
           }
         }
       })();
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
+      // Don't process auth changes if we're using mock auth
+      const hasMockAuth = localStorage.getItem('mock_auth_user');
+      if (hasMockAuth) return;
+
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        const profileData = await fetchProfile(session.user.id);
+        if (mounted) {
+          setProfile(profileData);
+          setLoading(false);
+        }
+      } else {
+        if (mounted) {
+          setProfile(null);
+          setLoading(false);
+        }
+      }
     });
 
     return () => {
@@ -174,12 +180,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       city?: string;
     }
   ) => {
+    // Get the correct redirect URL based on environment
+    const redirectUrl = window.location.origin + '/login';
+    
     // Sign up with user metadata - the database trigger will create the profile
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: window.location.origin + '/login',
+        emailRedirectTo: redirectUrl,
         data: {
           ...userData,
         },
