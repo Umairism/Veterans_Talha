@@ -174,36 +174,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       city?: string;
     }
   ) => {
+    // Sign up with user metadata - the database trigger will create the profile
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: window.location.origin + '/login',
+        data: {
+          ...userData,
+        },
       },
     });
 
     if (error) throw error;
     if (!data.user) throw new Error('User creation failed');
-
-    // Try to create profile - if it fails, it might be due to RLS or duplicate
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: data.user.id,
-      email,
-      ...userData,
-    });
-
-    if (profileError) {
-      console.error('Profile creation error:', profileError);
-      // Don't throw error if it's a duplicate (user might have confirmed email)
-      if (profileError.code !== '23505') {
-        throw new Error('Please check your email to verify your account. You may need to run the RLS policy update in Supabase.');
-      }
-    }
-
-    // Sign out immediately after signup so they don't get stuck
-    await supabase.auth.signOut();
     
-    // Return success message for email verification
+    // If there's a session, sign out immediately to prevent loading state issues
+    if (data.session) {
+      await supabase.auth.signOut();
+    }
+    
+    // Always show verification message
     throw new Error('VERIFICATION_EMAIL_SENT');
   };
 
