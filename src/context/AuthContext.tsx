@@ -78,7 +78,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(session.user);
           const profileData = await fetchProfile(session.user.id);
           if (mounted) {
-            setProfile(profileData);
+            // If user has a session but no profile, sign them out
+            if (!profileData) {
+              console.warn('Session found but no profile - clearing session');
+              await supabase.auth.signOut();
+              setUser(null);
+              setProfile(null);
+            } else {
+              setProfile(profileData);
+            }
             setLoading(false);
           }
         } else {
