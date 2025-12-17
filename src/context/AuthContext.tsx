@@ -43,6 +43,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user) {
       const profileData = await fetchProfile(user.id);
       setProfile(profileData);
+      
+      // If using mock auth, also update localStorage
+      const mockUser = localStorage.getItem('mock_auth_user');
+      if (mockUser && profileData) {
+        localStorage.setItem('mock_auth_profile', JSON.stringify(profileData));
+      }
     }
   };
 

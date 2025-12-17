@@ -460,5 +460,3 @@ For issues or questions:
 - [ ] Data validation
 
 ---
-
-**Built with ❤️ for connecting veterans with meaningful community service opportunities**
