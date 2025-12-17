@@ -141,7 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (existingProfile) {
-      // User exists, create mock auth user
+      // User exists in profiles table, use mock auth (works with any password)
       const mockUser: User = {
         id: existingProfile.id,
         email: email,
@@ -162,18 +162,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // If no profile exists, try actual Supabase auth (for new signups)
-    const { error } = await supabase.auth.signInWithPassword({
+    // If no profile exists, try actual Supabase auth (for newly verified users)
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     
     if (error) {
-      // If Supabase auth fails but email format is valid, show helpful message
-      if (email.includes('@') && password.length >= 6) {
-        throw new Error('Account not found. Please sign up first or use an existing account.');
+      throw new Error('Invalid email or password. Please check your credentials.');
+    }
+
+    // If login successful but no profile, wait and check again (trigger might be creating it)
+    if (data.user) {
+      // Wait a moment for the profile to be created by trigger
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const { data: newProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .maybeSingle();
+
+      if (!newProfile) {
+        // Profile still doesn't exist, sign out and show error
+        await supabase.auth.signOut();
+        throw new Error('Account setup incomplete. Please contact support or try signing up again.');
       }
-      throw error;
+      
+      // Profile exists, the auth state listener will handle setting user/profile
+      // Just return successfully - don't manually set state here to avoid conflicts
     }
   };
 
