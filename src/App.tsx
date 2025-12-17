@@ -6,9 +6,9 @@ import { Register } from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
 
-  if (loading) {
+  if (loading || (user && !profile)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-amber-50 via-cream-50 to-teal-50 flex items-center justify-center">
         <div className="text-xl text-gray-600">Loading...</div>
@@ -16,11 +16,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user) {
-    return <Navigate to="/login" />;
-  }
-
-  return <>{children}</>;
+  return user ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
@@ -34,11 +30,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (user) {
-    return <Navigate to="/dashboard" />;
-  }
-
-  return <>{children}</>;
+  return user ? <Navigate to="/dashboard" replace /> : <>{children}</>;
 }
 
 function App() {

@@ -47,16 +47,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    console.log('AuthContext useEffect running');
     // Check for mock auth in localStorage first (development mode)
     const mockUser = localStorage.getItem('mock_auth_user');
     const mockProfile = localStorage.getItem('mock_auth_profile');
+    console.log('localStorage check:', { mockUser: !!mockUser, mockProfile: !!mockProfile });
 
     if (mockUser && mockProfile) {
       try {
-        setUser(JSON.parse(mockUser));
-        setProfile(JSON.parse(mockProfile));
+        const parsedUser = JSON.parse(mockUser);
+        const parsedProfile = JSON.parse(mockProfile);
+        console.log('Setting mock auth:', { user: parsedUser.email, profile: parsedProfile.full_name });
+        setUser(parsedUser);
+        setProfile(parsedProfile);
         setLoading(false);
-        return;
+        return; // Don't set up Supabase listeners for mock auth
       } catch (error) {
         console.error('Error parsing mock auth:', error);
         localStorage.removeItem('mock_auth_user');
@@ -64,48 +69,72 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Fall back to Supabase auth
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      (async () => {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          const profileData = await fetchProfile(session.user.id);
-          setProfile(profileData);
-        }
+    console.log('No mock auth found, setting up Supabase');
+
+    // Only set up Supabase auth if not using mock auth
+    let mounted = true;
+
+    // For dev mode, clear any old Supabase sessions and just set loading to false
+    supabase.auth.signOut().then(() => {
+      if (mounted) {
+        setUser(null);
+        setProfile(null);
         setLoading(false);
-      })();
+        console.log('Cleared old session, loading complete');
+      }
+    }).catch(err => {
+      console.error('Failed to clear session:', err);
+      if (mounted) {
+        setLoading(false);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      // Don't process auth changes if we're using mock auth
+      const hasMockAuth = localStorage.getItem('mock_auth_user');
+      if (hasMockAuth) return;
+
       (async () => {
         setUser(session?.user ?? null);
         if (session?.user) {
           const profileData = await fetchProfile(session.user.id);
-          setProfile(profileData);
+          if (mounted) {
+            setProfile(profileData);
+          }
         } else {
-          setProfile(null);
+          if (mounted) {
+            setProfile(null);
+          }
         }
       })();
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
     // Development mode: Auto-login with any valid email/password format
     // Check if user exists in profiles table
+    console.log('Checking for profile with email:', email);
     const { data: existingProfile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('email', email)
       .maybeSingle();
 
+    console.log('Profile check result:', { found: !!existingProfile, error: profileError });
+
     if (profileError) {
       console.error('Error checking profile:', profileError);
+      // Don't throw error, just continue to try Supabase auth
     }
 
     if (existingProfile) {
-      // User exists, create mock auth user and set profile
+      // User exists, create mock auth user
       const mockUser: User = {
         id: existingProfile.id,
         email: email,
@@ -116,29 +145,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: 'authenticated',
       } as User;
 
-      setUser(mockUser);
-      setProfile(existingProfile);
-      
-      // Store in localStorage for persistence
+      // Store in localStorage and update state together in a batch
       localStorage.setItem('mock_auth_user', JSON.stringify(mockUser));
       localStorage.setItem('mock_auth_profile', JSON.stringify(existingProfile));
+      
+      // Use React 18's automatic batching by updating in same tick
+      setProfile(existingProfile); // Set profile first
+      setUser(mockUser); // Then user - this ensures profile is always available when user is set
       return;
     }
 
     // If no profile exists, try actual Supabase auth (for new signups)
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) {
-        // If Supabase auth fails but email format is valid, show helpful message
-        if (email.includes('@') && password.length >= 6) {
-          throw new Error('Account not found. Please sign up first or use an existing account.');
-        }
-        throw error;
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    
+    if (error) {
+      // If Supabase auth fails but email format is valid, show helpful message
+      if (email.includes('@') && password.length >= 6) {
+        throw new Error('Account not found. Please sign up first or use an existing account.');
       }
-    } catch (error) {
       throw error;
     }
   };

@@ -41,7 +41,7 @@ export function Register() {
         organization_name: userType === 'organization' ? organizationName : undefined,
         city,
       });
-      navigate('/dashboard');
+      // Don't manually navigate - PublicRoute will handle redirect
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message || 'Failed to create account. Please try again.');

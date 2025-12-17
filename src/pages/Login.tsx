@@ -20,7 +20,7 @@ export function Login() {
 
     try {
       await signIn(email, password);
-      navigate('/dashboard');
+      // Don't manually navigate - PublicRoute will handle redirect
     } catch (err) {
       setError('Invalid email or password. Please try again.');
       console.error(err);

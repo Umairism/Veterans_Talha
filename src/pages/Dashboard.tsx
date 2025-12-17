@@ -1,7 +1,6 @@
 import { useAuth } from '../context/AuthContext';
 import { VeteranDashboard } from './VeteranDashboard';
 import { OrganizationDashboard } from './OrganizationDashboard';
-import { Navigate } from 'react-router-dom';
 
 export function Dashboard() {
   const { profile, loading } = useAuth();
@@ -14,8 +13,13 @@ export function Dashboard() {
     );
   }
 
+  // Profile should exist here because ProtectedRoute ensures user is authenticated
   if (!profile) {
-    return <Navigate to="/login" />;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-cream-50 to-teal-50 flex items-center justify-center">
+        <div className="text-xl text-gray-600">Loading profile...</div>
+      </div>
+    );
   }
 
   if (profile.user_type === 'veteran') {
@@ -26,5 +30,5 @@ export function Dashboard() {
     return <OrganizationDashboard />;
   }
 
-  return <Navigate to="/login" />;
+  return null;
 }
